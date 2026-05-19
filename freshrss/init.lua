@@ -5,6 +5,14 @@ local meta = require 'freshrss.meta'
 
 local M = {}
 
+function M.meta()
+  return {
+    icon = '󰑪',
+    desc = 'FreshRSS feed reader',
+    color = 'yellow',
+  }
+end
+
 local state = {
   auth = nil,
   edit_token = nil,
