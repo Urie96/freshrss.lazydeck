@@ -50,10 +50,11 @@ local function feed_entry(feed, opts)
     feed = feed,
     url = feed.site_url or feed.url,
     unread_count = unread_count,
+    bottom_line = action.feed_bottom_line,
     display = deck.style.line {
       deck.style.span(feed.title or ('Feed ' .. tostring(feed.id))):fg 'white',
       deck.style.span(feed.group_title and ('  [' .. feed.group_title .. ']') or ''):fg 'blue',
-      deck.style.span(unread_count ~= nil and ('  unread: ' .. tostring(unread_count)) or ''):fg 'cyan',
+      deck.style.span(unread_count ~= nil and ('  󰇮 ' .. tostring(unread_count)) or ''):fg 'cyan',
       deck.style.span(updated ~= '' and ('  ' .. updated) or ''):fg 'darkgray',
     },
   }

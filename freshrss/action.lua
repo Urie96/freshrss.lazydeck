@@ -13,54 +13,14 @@ local function trim(s)
   return tostring(s):match '^%s*(.-)%s*$'
 end
 
-local function decode_html_entities(text)
-  if not text then return '' end
-  local entities = {
-    ['&nbsp;'] = ' ',
-    ['&amp;'] = '&',
-    ['&lt;'] = '<',
-    ['&gt;'] = '>',
-    ['&quot;'] = '"',
-    ['&#39;'] = "'",
-  }
-  text = text:gsub('&#x([%da-fA-F]+);', function(hex)
-    local code = tonumber(hex, 16)
-    return code and utf8.char(code) or ''
-  end)
-  text = text:gsub('&#(%d+);', function(dec)
-    local code = tonumber(dec)
-    return code and utf8.char(code) or ''
-  end)
-  for entity, replacement in pairs(entities) do
-    text = text:gsub(entity, replacement)
-  end
-  return text
-end
-
-local function html_to_text(html)
+local function html_to_markdown(html)
   if not html or html == '' then return '' end
-  local text = tostring(html)
-  text = text:gsub('<[bB][rR]%s*/?>', '\n')
-  text = text:gsub('</[pP]>', '\n\n')
-  text = text:gsub('</[hH][1-6]>', '\n\n')
-  text = text:gsub('</[lL][iI]>', '\n')
-  text = text:gsub('<[lL][iI][^>]*>', '• ')
-  text = text:gsub('</[uU][lL]>', '\n')
-  text = text:gsub('</[oO][lL]>', '\n')
-  text = text:gsub('</[dD][iI][vV]>', '\n')
-  text = text:gsub('</[tT][rR]>', '\n')
-  text = text:gsub('</[tT][dD]>', ' ')
-  text = text:gsub('<script[%s%S]-</script>', '')
-  text = text:gsub('<style[%s%S]-</style>', '')
-  text = text:gsub('<[^>]+>', '')
-  text = decode_html_entities(text)
-  text = text:gsub('\r\n', '\n')
-  text = text:gsub('\r', '\n')
-  text = text:gsub('[ \t]+\n', '\n')
-  text = text:gsub('\n[ \t]+', '\n')
-  text = text:gsub('\n\n\n+', '\n\n')
-  text = text:gsub('[ \t][ \t]+', ' ')
-  return text:trim()
+  local ok, markdown = pcall(deck.html.to_markdown, tostring(html))
+  if not ok then
+    deck.log('error', 'Failed to convert FreshRSS article HTML to markdown: {}', tostring(markdown))
+    return tostring(html)
+  end
+  return trim(markdown) or ''
 end
 
 local function path_key(path) return table.concat(path or {}, '\1') end
@@ -118,7 +78,7 @@ end
 
 local function article_preview(entry, feed)
   local item = entry.item
-  local text = html_to_text(item.html)
+  local markdown = html_to_markdown(item.html)
   local lines = {
     deck.style.line { deck.style.span(item.title or '(no title)'):fg 'yellow' },
     deck.style.line {
@@ -150,10 +110,13 @@ local function article_preview(entry, feed)
   end
 
   table.insert(lines, '')
-  table.insert(lines, text ~= '' and text or '(empty content)')
-  table.insert(lines, '')
-  table.insert(lines, 'Enter/o 打开原文  r 标记已读  s 收藏/取消收藏  y 复制链接')
-  return deck.style.text(lines)
+  local preview = deck.style.text(lines)
+  if markdown ~= '' then
+    preview:append(deck.style.highlight(markdown, 'markdown'))
+  else
+    preview:append('(empty content)')
+  end
+  return preview
 end
 
 local function render_current_page(entries)
@@ -255,6 +218,28 @@ function M.item_display(item, feed_title)
   }
 end
 
+local function key_or_default(name, default)
+  local keymap = (runtime.cfg or {}).keymap or {}
+  return keymap[name] or default
+end
+
+function M.item_bottom_line()
+  return table.concat({
+    'Enter/' .. key_or_default('open', 'o') .. ' 打开原文',
+    key_or_default('read', 'r') .. ' 标记已读',
+    key_or_default('toggle_saved', 's') .. ' 收藏/取消收藏',
+    key_or_default('copy', 'y') .. ' 复制链接',
+  }, ' | ')
+end
+
+function M.feed_bottom_line()
+  return table.concat({
+    'Enter 查看文章',
+    key_or_default('open', 'o') .. ' 打开站点',
+    key_or_default('delete', 'dd') .. ' 取消订阅',
+  }, ' | ')
+end
+
 function M.to_item_entry(item, feeds)
   local feed = feeds and feeds.by_id and feeds.by_id[tostring(item.feed_id)] or nil
   local feed_title = feed and feed.title or ('Feed ' .. tostring(item.feed_id))
@@ -267,10 +252,12 @@ function M.to_item_entry(item, feeds)
     item = item,
     url = item.url,
     display = M.item_display(item, feed_title),
+    bottom_line = M.item_bottom_line,
   }
 end
 
 function M.open_entry(entry)
+  entry = entry or deck.api.get_hovered()
   if not entry then return end
 
   if entry.kind == 'item' and entry.url and entry.url ~= '' then
