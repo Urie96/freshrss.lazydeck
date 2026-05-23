@@ -18,6 +18,7 @@ local cfg = {
     copy = 'y',
     read = 'r',
     toggle_saved = 's',
+    delete = 'dd',
     refresh = 'R',
   },
 }

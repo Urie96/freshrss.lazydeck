@@ -60,6 +60,7 @@ function M.setup(cfg)
   end
 
   add_keymap({ feed_map }, keymap.open, action.open_entry, 'open feed site')
+  add_keymap({ feed_map }, keymap.delete, action.unsubscribe_feed, 'unsubscribe feed')
 
   add_keymap({ item_map }, '<enter>', action.open_entry, 'open article')
   add_keymap({ item_map }, keymap.open, action.open_entry, 'open article')

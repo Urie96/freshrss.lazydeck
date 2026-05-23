@@ -77,6 +77,15 @@ local function sort_items_desc(items)
   return items
 end
 
+local function params_cache_suffix(params)
+  local parts = {}
+  for k, v in pairs(params or {}) do
+    if v ~= nil and v ~= '' then table.insert(parts, tostring(k) .. '=' .. tostring(v)) end
+  end
+  table.sort(parts)
+  return #parts > 0 and table.concat(parts, '&') or 'all'
+end
+
 function M.create(opts)
   local cfg = opts.cfg
   local state = opts.state
@@ -384,8 +393,43 @@ function M.create(opts)
     fetch_page(1)
   end
 
-  function client.fetch_feed_items(feed_id, cb)
-    client.fetch_stream_items('feed_items:' .. tostring(feed_id), '/stream/contents/feed/' .. tostring(feed_id), nil, cfg.feed_fetch_max_pages, cb)
+  function client.fetch_feed_items(feed_id, params, cb)
+    client.fetch_stream_items(
+      'feed_items:' .. tostring(feed_id) .. ':' .. params_cache_suffix(params),
+      '/stream/contents/feed/' .. tostring(feed_id),
+      params,
+      cfg.feed_fetch_max_pages,
+      cb
+    )
+  end
+
+  function client.unsubscribe_feed(feed_id, cb)
+    ensure_edit_token(function(token, token_err)
+      if not token then
+        cb(nil, token_err)
+        return
+      end
+
+      with_auth_request({
+        url = cfg.reader_api_endpoint .. '/subscription/edit',
+        method = 'POST',
+        headers = {
+          ['Content-Type'] = 'application/x-www-form-urlencoded',
+        },
+        body = encode_pairs {
+          { 'T', token },
+          { 'ac', 'unsubscribe' },
+          { 's', 'feed/' .. tostring(feed_id) },
+        },
+      }, function(body, err, status)
+        if err and status == 401 then state.edit_token = nil end
+        if err then
+          cb(nil, err)
+          return
+        end
+        cb(trim(body or 'OK'))
+      end)
+    end)
   end
 
   function client.edit_tag(item_ids, adds, removes, cb)

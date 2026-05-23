@@ -91,9 +91,9 @@ local function current_path_entries()
   return runtime.state.page_entries[path_key(deck.api.get_current_path())]
 end
 
-local function entry_index_by_id(entries, id)
+local function entry_index_by_key(entries, key)
   for i, entry in ipairs(entries or {}) do
-    if entry.kind == 'item' and tostring(entry.id) == tostring(id) then return i end
+    if entry.kind == 'item' and tostring(entry.key) == tostring(key) then return i end
   end
 end
 
@@ -162,22 +162,22 @@ local function render_current_page(entries)
   if not hovered then return end
 
   if hovered.kind == 'item' then
-    local idx = entry_index_by_id(entries, hovered.id)
+    local idx = entry_index_by_key(entries, hovered.key)
     if idx then deck.api.set_preview(nil, article_preview(entries[idx], feed_for_entry(entries[idx]))) end
     return
   end
 
   if hovered.kind == 'section' then
+    if hovered.key == 'all' then
+      deck.api.set_preview(nil, section_preview(hovered.title or 'All', hovered.preview_desc or 'Browse all feeds.'))
+      return
+    end
     if hovered.key == 'unread' then
-      deck.api.set_preview(nil, section_preview('Unread', '显示最近的未读文章。'))
+      deck.api.set_preview(nil, section_preview(hovered.title or 'Unread', hovered.preview_desc or 'Browse unread feeds and articles.'))
       return
     end
     if hovered.key == 'saved' then
-      deck.api.set_preview(nil, section_preview('Saved', '显示最近收藏的文章。'))
-      return
-    end
-    if hovered.key == 'feeds' then
-      deck.api.set_preview(nil, section_preview('Feeds', '进入后按订阅源浏览最新文章。'))
+      deck.api.set_preview(nil, section_preview(hovered.title or 'Saved', hovered.preview_desc or 'Browse saved articles.'))
       return
     end
   end
@@ -208,7 +208,7 @@ local function update_entry_locally(id, mutator)
   local entries = current_path_entries()
   if not entries then return nil end
 
-  local idx = entry_index_by_id(entries, id)
+  local idx = entry_index_by_key(entries, id)
   if not idx then return nil end
 
   local previous = clone_entry(entries[idx])
@@ -241,17 +241,14 @@ function M.invalidate_cache()
 end
 
 function M.item_display(item, feed_title)
-  local read_icon = item.is_read and ' ' or '●'
+  local read_icon = item.is_read and '󰇯' or '󰇮'
   local read_color = item.is_read and 'darkgray' or 'cyan'
-  local saved_icon = item.is_saved and '★ ' or ''
-  local saved_color = item.is_saved and 'yellow' or 'darkgray'
   local title = trim(item.title)
   if not title or title == '' then title = '(no title)' end
   local date = item.created_on_time and deck.time.format(item.created_on_time, 'compact') or ''
 
   return deck.style.line {
     deck.style.span(read_icon .. ' '):fg(read_color),
-    deck.style.span(saved_icon):fg(saved_color),
     deck.style.span(title):fg(item.is_read and 'darkgray' or 'white'),
     deck.style.span('  ' .. (feed_title or '')):fg 'blue',
     deck.style.span('  ' .. date):fg 'darkgray',
@@ -261,10 +258,12 @@ end
 function M.to_item_entry(item, feeds)
   local feed = feeds and feeds.by_id and feeds.by_id[tostring(item.feed_id)] or nil
   local feed_title = feed and feed.title or ('Feed ' .. tostring(item.feed_id))
+  local key = item.api_id or tostring(item.id)
   return {
-    key = tostring(item.id),
+    key = key,
     kind = 'item',
     id = item.id,
+    api_id = item.api_id,
     item = item,
     url = item.url,
     display = M.item_display(item, feed_title),
@@ -282,6 +281,34 @@ function M.open_entry(entry)
   if entry.kind == 'feed' and entry.url and entry.url ~= '' then deck.system.open(entry.url) end
 end
 
+function M.unsubscribe_feed(entry)
+  entry = entry or deck.api.get_hovered()
+  if not entry or entry.kind ~= 'feed' or not entry.feed then return end
+
+  local feed = entry.feed
+  local title = feed.title or ('Feed ' .. tostring(feed.id or entry.key))
+  deck.confirm({
+    title = 'Unsubscribe Feed',
+    prompt = 'Unsubscribe "' .. title .. '"?',
+    on_confirm = function()
+      runtime.greader.unsubscribe_feed(feed.id or entry.key, function(_, err)
+        if err then
+          M.show_error(err)
+          return
+        end
+
+        M.invalidate_cache()
+        runtime.state.page_entries = {}
+        deck.notify(deck.style.line {
+          deck.style.span('✓ '):fg 'green',
+          deck.style.span('Unsubscribed ' .. title):fg 'green',
+        })
+        deck.cmd 'reload'
+      end)
+    end,
+  })
+end
+
 function M.copy_url(entry)
   entry = entry or deck.api.get_hovered()
   if not entry or not entry.url or entry.url == '' then return end
@@ -295,9 +322,9 @@ function M.set_mark(entry, mark)
 
   local previous
   if mark == 'read' then
-    previous = update_entry_locally(entry.id, function(local_entry) local_entry.item.is_read = true end)
+    previous = update_entry_locally(entry.key, function(local_entry) local_entry.item.is_read = true end)
   elseif mark == 'saved' or mark == 'unsaved' then
-    previous = update_entry_locally(entry.id, function(local_entry) local_entry.item.is_saved = mark == 'saved' end)
+    previous = update_entry_locally(entry.key, function(local_entry) local_entry.item.is_saved = mark == 'saved' end)
   end
 
   local adds = {}
@@ -313,7 +340,7 @@ function M.set_mark(entry, mark)
   runtime.greader.edit_tag({ entry.item.api_id }, adds, removes, function(_, err)
     if err then
       if previous then
-        update_entry_locally(entry.id, function(local_entry)
+        update_entry_locally(entry.key, function(local_entry)
           local_entry.item = previous.item
           local_entry.url = previous.url
         end)
@@ -341,23 +368,21 @@ function M.toggle_saved(entry)
 end
 
 function M.section_preview(entry)
-  if entry.key == 'unread' then
-    return section_preview('Unread', '显示最近的未读文章。')
+  if entry.title then
+    return section_preview(entry.title, entry.preview_desc or '')
   end
-  if entry.key == 'saved' then
-    return section_preview('Saved', '显示最近收藏的文章。')
-  end
-  if entry.key == 'feeds' then
-    return section_preview('Feeds', '进入后按订阅源浏览最新文章。')
-  end
-  return section_preview('FreshRSS', '使用 Enter 进入未读、收藏或订阅源。')
+  return section_preview('FreshRSS', 'Use Enter to browse sections.')
 end
 
 function M.feed_preview(entry)
   local feed = entry.feed or {}
+  local desc = feed.site_url or feed.url or ''
+  if entry.unread_count ~= nil then
+    desc = desc ~= '' and (desc .. '\nUnread: ' .. tostring(entry.unread_count)) or ('Unread: ' .. tostring(entry.unread_count))
+  end
   return section_preview(
     feed.title or ('Feed ' .. tostring(entry.key)),
-    feed.site_url or feed.url or '',
+    desc,
     'Enter 查看该订阅源文章  o 打开站点'
   )
 end
