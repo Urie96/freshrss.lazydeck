@@ -357,14 +357,21 @@ function M.set_mark(entry, mark)
 end
 
 function M.mark_read(entry)
-  entry = entry or deck.api.get_hovered()
-  if entry and entry.kind == 'item' and not entry.item.is_read then M.set_mark(entry, 'read') end
+  local selected = deck.api.get_selected()
+  for _, item in ipairs(selected or {}) do
+    if item.kind == 'item' and not item.item.is_read then
+      M.set_mark(item, 'read')
+    end
+  end
 end
 
 function M.toggle_saved(entry)
-  entry = entry or deck.api.get_hovered()
-  if not entry or entry.kind ~= 'item' then return end
-  M.set_mark(entry, entry.item.is_saved and 'unsaved' or 'saved')
+  local selected = deck.api.get_selected()
+  for _, item in ipairs(selected or {}) do
+    if item.kind == 'item' then
+      M.set_mark(item, item.item.is_saved and 'unsaved' or 'saved')
+    end
+  end
 end
 
 function M.section_preview(entry)
