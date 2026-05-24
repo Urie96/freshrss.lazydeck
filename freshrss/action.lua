@@ -47,9 +47,7 @@ end
 
 local function cache_key(name) return runtime.cache_key(name) end
 
-local function current_path_entries()
-  return runtime.state.page_entries[path_key(deck.api.get_current_path())]
-end
+local function current_path_entries() return runtime.state.page_entries[path_key(deck.api.get_current_path())] end
 
 local function entry_index_by_key(entries, key)
   for i, entry in ipairs(entries or {}) do
@@ -89,24 +87,33 @@ local function article_preview(entry, feed)
   }
 
   if item.author and item.author ~= '' then
-    table.insert(lines, deck.style.line {
-      deck.style.span('Author: '):fg 'cyan',
-      deck.style.span(item.author):fg 'white',
-    })
+    table.insert(
+      lines,
+      deck.style.line {
+        deck.style.span('Author: '):fg 'cyan',
+        deck.style.span(item.author):fg 'white',
+      }
+    )
   end
 
-  table.insert(lines, deck.style.line {
-    deck.style.span('Status: '):fg 'cyan',
-    deck.style.span(item.is_read and 'read' or 'unread'):fg(item.is_read and 'darkgray' or 'green'),
-    deck.style.span('  saved: '):fg 'cyan',
-    deck.style.span(item.is_saved and 'yes' or 'no'):fg(item.is_saved and 'yellow' or 'darkgray'),
-  })
+  table.insert(
+    lines,
+    deck.style.line {
+      deck.style.span('Status: '):fg 'cyan',
+      deck.style.span(item.is_read and 'read' or 'unread'):fg(item.is_read and 'darkgray' or 'green'),
+      deck.style.span('  saved: '):fg 'cyan',
+      deck.style.span(item.is_saved and 'yes' or 'no'):fg(item.is_saved and 'yellow' or 'darkgray'),
+    }
+  )
 
   if item.url and item.url ~= '' then
-    table.insert(lines, deck.style.line {
-      deck.style.span('URL: '):fg 'cyan',
-      deck.style.span(item.url):fg 'magenta',
-    })
+    table.insert(
+      lines,
+      deck.style.line {
+        deck.style.span('URL: '):fg 'cyan',
+        deck.style.span(item.url):fg 'magenta',
+      }
+    )
   end
 
   table.insert(lines, '')
@@ -114,7 +121,7 @@ local function article_preview(entry, feed)
   if markdown ~= '' then
     preview:append(deck.style.highlight(markdown, 'markdown'))
   else
-    preview:append('(empty content)')
+    preview:append '(empty content)'
   end
   return preview
 end
@@ -136,28 +143,35 @@ local function render_current_page(entries)
       return
     end
     if hovered.key == 'unread' then
-      deck.api.set_preview(nil, section_preview(hovered.title or 'Unread', hovered.preview_desc or 'Browse unread feeds and articles.'))
+      deck.api.set_preview(
+        nil,
+        section_preview(hovered.title or 'Unread', hovered.preview_desc or 'Browse unread feeds and articles.')
+      )
       return
     end
     if hovered.key == 'saved' then
-      deck.api.set_preview(nil, section_preview(hovered.title or 'Saved', hovered.preview_desc or 'Browse saved articles.'))
+      deck.api.set_preview(
+        nil,
+        section_preview(hovered.title or 'Saved', hovered.preview_desc or 'Browse saved articles.')
+      )
       return
     end
   end
 
   if hovered.kind == 'feed' and hovered.feed then
     local feed = hovered.feed
-    deck.api.set_preview(nil, section_preview(
-      feed.title or ('Feed ' .. hovered.key),
-      feed.site_url or feed.url or '',
-      'Enter 查看该订阅源文章  o 打开站点'
-    ))
+    deck.api.set_preview(
+      nil,
+      section_preview(
+        feed.title or ('Feed ' .. hovered.key),
+        feed.site_url or feed.url or '',
+        'Enter 查看该订阅源文章  o 打开站点'
+      )
+    )
     return
   end
 
-  if hovered.kind == 'info' then
-    deck.api.set_preview(nil, M.info_preview(hovered))
-  end
+  if hovered.kind == 'info' then deck.api.set_preview(nil, M.info_preview(hovered)) end
 end
 
 local function refresh_entry_display(entry)
@@ -195,23 +209,22 @@ function M.show_error(err)
   })
 end
 
-function M.remember_entries(path, entries)
-  runtime.state.page_entries[path_key(path)] = entries
-end
+function M.remember_entries(path, entries) runtime.state.page_entries[path_key(path)] = entries end
 
-function M.invalidate_cache()
-  runtime.state.cache_version = runtime.state.cache_version + 1
-end
+function M.invalidate_cache() runtime.state.cache_version = runtime.state.cache_version + 1 end
 
 function M.item_display(item, feed_title)
   local read_icon = item.is_read and '󰇯' or '󰇮'
   local read_color = item.is_read and 'darkgray' or 'cyan'
+  local saved_icon = item.is_saved and '' or ' '
+  local saved_color = item.is_saved and 'yellow' or 'darkgray'
   local title = trim(item.title)
   if not title or title == '' then title = '(no title)' end
   local date = item.created_on_time and deck.time.format(item.created_on_time, 'compact') or ''
 
   return deck.style.line {
     deck.style.span(read_icon .. ' '):fg(read_color),
+    deck.style.span(saved_icon .. ' '):fg(saved_color),
     deck.style.span(title):fg(item.is_read and 'darkgray' or 'white'),
     deck.style.span('  ' .. (feed_title or '')):fg 'blue',
     deck.style.span('  ' .. date):fg 'darkgray',
@@ -274,7 +287,7 @@ function M.unsubscribe_feed(entry)
 
   local feed = entry.feed
   local title = feed.title or ('Feed ' .. tostring(feed.id or entry.key))
-  deck.confirm({
+  deck.confirm {
     title = 'Unsubscribe Feed',
     prompt = 'Unsubscribe "' .. title .. '"?',
     on_confirm = function()
@@ -293,7 +306,7 @@ function M.unsubscribe_feed(entry)
         deck.cmd 'reload'
       end)
     end,
-  })
+  }
 end
 
 function M.copy_url(entry)
@@ -355,9 +368,7 @@ function M.toggle_saved(entry)
 end
 
 function M.section_preview(entry)
-  if entry.title then
-    return section_preview(entry.title, entry.preview_desc or '')
-  end
+  if entry.title then return section_preview(entry.title, entry.preview_desc or '') end
   return section_preview('FreshRSS', 'Use Enter to browse sections.')
 end
 
@@ -365,7 +376,8 @@ function M.feed_preview(entry)
   local feed = entry.feed or {}
   local desc = feed.site_url or feed.url or ''
   if entry.unread_count ~= nil then
-    desc = desc ~= '' and (desc .. '\nUnread: ' .. tostring(entry.unread_count)) or ('Unread: ' .. tostring(entry.unread_count))
+    desc = desc ~= '' and (desc .. '\nUnread: ' .. tostring(entry.unread_count))
+      or ('Unread: ' .. tostring(entry.unread_count))
   end
   return section_preview(
     feed.title or ('Feed ' .. tostring(entry.key)),
@@ -394,6 +406,79 @@ function M.missing_config_preview()
     'FreshRSS',
     '请在 setup() 中设置 url/login/password，或导出 FRESHRSS_URL/FRESHRSS_LOGIN/FRESHRSS_PASSWORD。'
   )
+end
+
+function M.open_current(entry)
+  entry = entry or deck.api.get_hovered()
+  if not entry then return end
+  if entry.kind == 'section' then return M.open_section(entry) end
+  return M.open_entry(entry)
+end
+
+function M.preview(entry, cb)
+  entry = entry or deck.api.get_hovered()
+  if not entry then
+    cb(section_preview('FreshRSS', 'No entry selected'))
+    return
+  end
+
+  local path = deck.api.get_current_path()
+  if entry.kind == 'info' then
+    if entry.key == 'configure' then
+      cb(M.missing_config_preview())
+      return
+    end
+    cb(M.info_preview(entry))
+    return
+  end
+
+  if deck.path.match(path, '/freshrss') then
+    cb(M.section_preview(entry))
+    return
+  end
+
+  if deck.path.match(path, '/freshrss/all') or deck.path.match(path, '/freshrss/unread') then
+    if entry.kind == 'feed' then
+      cb(M.feed_preview(entry))
+      return
+    end
+    if entry.kind == 'section' then
+      cb(M.section_preview(entry))
+      return
+    end
+  end
+
+  if entry.kind == 'item' then
+    M.item_preview(entry, cb)
+    return
+  end
+
+  if entry.kind == 'feed' then
+    cb(M.feed_preview(entry))
+    return
+  end
+
+  if entry.kind == 'section' then
+    cb(M.section_preview(entry))
+    return
+  end
+
+  cb(M.info_preview(entry))
+end
+
+function M.register_page_keymaps(cfg)
+  local keymap = (cfg or {}).keymap or {}
+  local function map(path, key, callback, desc)
+    if not key or key == '' then return end
+    deck.keymap.set('main', key, callback, { path = path, desc = desc })
+  end
+
+  map('/freshrss/*/**', '<enter>', M.open_current, 'open entry')
+  map('/freshrss/*/**', keymap.open, M.open_current, 'open entry')
+  map('/freshrss/*/**', keymap.delete, M.unsubscribe_feed, 'unsubscribe feed')
+  map('/freshrss/*/**', keymap.copy, M.copy_url, 'copy url')
+  map('/freshrss/*/**', keymap.read, M.mark_read, 'mark read')
+  map('/freshrss/*/**', keymap.toggle_saved, M.toggle_saved, 'toggle saved')
 end
 
 return M

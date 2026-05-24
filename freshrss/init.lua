@@ -1,7 +1,6 @@
 local action = require 'freshrss.action'
 local config = require 'freshrss.config'
 local GReader = require 'freshrss.greader'
-local meta = require 'freshrss.meta'
 
 local M = {}
 
@@ -24,6 +23,7 @@ local CACHE_PREFIX = 'freshrss:'
 local greader
 
 local function cache_key(name) return CACHE_PREFIX .. state.cache_version .. ':' .. name end
+local function path_leaf(path) return path[#path] end
 
 local function section_entry(key, icon, icon_color, title, count, opts)
   opts = opts or {}
@@ -83,7 +83,7 @@ local function list_root(path, cb)
         if (feed.unread_count or 0) > 0 then unread_feed_count = unread_feed_count + 1 end
       end
 
-      cb(remember(path, meta.attach {
+      cb(remember(path, {
         section_entry('all', '', 'green', 'All', #(feeds.feeds or {}), {
           preview_title = 'All feeds',
           preview_desc = 'Browse all feeds and then open a feed to read its articles.',
@@ -113,7 +113,7 @@ local function list_all_feeds(path, cb)
       table.insert(entries, feed_entry(feed, { unread_count = nil }))
     end
 
-    cb(remember(path, meta.attach(entries)))
+    cb(remember(path, entries))
   end)
 end
 
@@ -137,7 +137,7 @@ local function list_unread_feeds(path, cb)
       end
     end
 
-    cb(remember(path, meta.attach(entries)))
+    cb(remember(path, entries))
   end)
 end
 
@@ -171,7 +171,7 @@ local function list_virtual_items(path, kind, cb)
         table.insert(entries, action.to_item_entry(item, feeds))
       end
 
-      cb(remember(path, meta.attach(entries)))
+      cb(remember(path, entries))
     end)
   end)
 end
@@ -194,7 +194,7 @@ local function list_feed_articles(path, feed_id, params, cb)
         table.insert(entries, action.to_item_entry(item, feeds))
       end
 
-      cb(remember(path, meta.attach(entries)))
+      cb(remember(path, entries))
     end)
   end)
 end
@@ -219,12 +219,12 @@ function M.setup(opt)
     greader = greader,
     cache_key = cache_key,
   }
-  meta.setup(config.get())
+  action.register_page_keymaps(config.get())
 end
 
 function M.list(path, cb)
   if not config.ready() then
-    cb(meta.attach {
+    cb({
       {
         key = 'configure',
         kind = 'info',
@@ -237,11 +237,11 @@ function M.list(path, cb)
     return
   end
 
-  if #path == 1 then
+  if deck.path.match(path, '/freshrss') then
     list_root(path, function(entries, err)
       if err then
         action.show_error(err)
-        cb(meta.attach {})
+        cb({})
         return
       end
       cb(entries)
@@ -249,85 +249,83 @@ function M.list(path, cb)
     return
   end
 
-  if path[2] == 'all' or path[2] == 'feeds' then
-    if #path == 2 then
-      list_all_feeds(path, function(entries, err)
-        if err then
-          action.show_error(err)
-          cb(meta.attach {})
-          return
-        end
-        cb(entries)
-      end)
-      return
-    end
-
-    if #path == 3 then
-      list_feed_articles(path, path[3], nil, function(entries, err)
-        if err then
-          action.show_error(err)
-          cb(meta.attach {})
-          return
-        end
-        cb(entries)
-      end)
-      return
-    end
+  if deck.path.match(path, '/freshrss/all') or deck.path.match(path, '/freshrss/feeds') then
+    list_all_feeds(path, function(entries, err)
+      if err then
+        action.show_error(err)
+        cb({})
+        return
+      end
+      cb(entries)
+    end)
+    return
   end
 
-  if path[2] == 'unread' then
-    if #path == 2 then
-      list_unread_feeds(path, function(entries, err)
-        if err then
-          action.show_error(err)
-          cb(meta.attach {})
-          return
-        end
-        cb(entries)
-      end)
-      return
-    end
-
-    if #path == 3 and path[3] == 'all' then
-      list_virtual_items(path, 'unread', function(entries, err)
-        if err then
-          action.show_error(err)
-          cb(meta.attach {})
-          return
-        end
-        cb(entries)
-      end)
-      return
-    end
-
-    if #path == 3 then
-      list_feed_articles(path, path[3], { xt = 'user/-/state/com.google/read' }, function(entries, err)
-        if err then
-          action.show_error(err)
-          cb(meta.attach {})
-          return
-        end
-        cb(entries)
-      end)
-      return
-    end
+  if deck.path.match(path, '/freshrss/all/*') or deck.path.match(path, '/freshrss/feeds/*') then
+    list_feed_articles(path, path_leaf(path), nil, function(entries, err)
+      if err then
+        action.show_error(err)
+        cb({})
+        return
+      end
+      cb(entries)
+    end)
+    return
   end
 
-  if path[2] == 'saved' then
-    if #path == 2 then
-      list_virtual_items(path, 'saved', function(entries, err)
-        if err then
-          action.show_error(err)
-          cb(meta.attach {})
-          return
-        end
-        cb(entries)
-      end)
-      return
-    end
+  if deck.path.match(path, '/freshrss/unread') then
+    list_unread_feeds(path, function(entries, err)
+      if err then
+        action.show_error(err)
+        cb({})
+        return
+      end
+      cb(entries)
+    end)
+    return
   end
 
-  cb(meta.attach {})
+  if deck.path.match(path, '/freshrss/unread/all') then
+    list_virtual_items(path, 'unread', function(entries, err)
+      if err then
+        action.show_error(err)
+        cb({})
+        return
+      end
+      cb(entries)
+    end)
+    return
+  end
+
+  if deck.path.match(path, '/freshrss/unread/*') then
+    list_feed_articles(path, path_leaf(path), { xt = 'user/-/state/com.google/read' }, function(entries, err)
+      if err then
+        action.show_error(err)
+        cb({})
+        return
+      end
+      cb(entries)
+    end)
+    return
+  end
+
+  if deck.path.match(path, '/freshrss/saved') then
+    list_virtual_items(path, 'saved', function(entries, err)
+      if err then
+        action.show_error(err)
+        cb({})
+        return
+      end
+      cb(entries)
+    end)
+    return
+  end
+
+  cb({})
+end
+
+function M.preview(entry, cb)
+  return action.preview(entry, cb)
 end
 
 return M

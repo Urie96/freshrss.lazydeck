@@ -6,8 +6,7 @@
 
 - `freshrss/init.lua` 负责路由和列表数据加载
 - `freshrss/config.lua` 负责配置归一化
-- `freshrss/meta.lua` 负责 entry 元表和局部 keymap
-- `freshrss/action.lua` 负责预览、打开链接、标记状态和刷新缓存
+- `freshrss/action.lua` 负责预览、打开链接、标记状态、页面 keymap 和刷新缓存
 - `freshrss/greader.lua` 负责 FreshRSS GReader API 客户端
 
 ## 功能
@@ -61,6 +60,12 @@
 
 ## 键位
 
+页面级快捷键由 `freshrss/action.lua` 统一注册，支持的路由分别是：
+
+- `/freshrss`: 处理 section 页面
+- `/freshrss/*/**`: 处理订阅源列表、文章列表和文章页
+
+常用按键：
 - `Enter`: 在 section/feed 上进入下一级；在文章上打开原文
 - `o`: 打开文章原文，或在订阅源列表中打开站点
 - `dd`: 在订阅源上取消订阅（会弹出确认框）
